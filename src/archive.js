@@ -193,7 +193,9 @@ class Archive {
         if (!algorithm) {
           const cipherDataChildEls = encryptedFilesChildEl[j].children
           if (cipherDataChildEls) {
-            url = cipherDataChildEls[0]?.getAttribute('URI')
+			if (cipherDataChildEls[0]) {
+				url = cipherDataChildEls[0].getAttribute('URI')
+			}
           }
         }
         if (algorithm) {
@@ -263,7 +265,7 @@ class Archive {
         } else {
           encryptedFileIndex = -1
         }
-        if (encryptedFileIndex !== -1 && encryptedFiles?.[encryptedFileIndex]?.algorithm.includes('http://www.idpf.org/2008/embedding') ) {
+        if (encryptedFileIndex !== -1 && encryptedFiles && encryptedFiles[encryptedFileIndex] && encryptedFiles[encryptedFileIndex].algorithm.includes('http://www.idpf.org/2008/embedding') ) {
           return entry.async("uint8array").then(async function(uint8array) {
             var masklen = UIDHash.length;
             var prefixLength = 1040

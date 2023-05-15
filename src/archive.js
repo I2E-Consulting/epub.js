@@ -3,7 +3,14 @@ import request from "./utils/request";
 import mime from "./utils/mime";
 import Path from "./utils/path";
 import JSZip from "jszip/dist/jszip";
+import CryptoJS_SHA1 from "crypto-js/sha1";
+import Url from "./utils/url";
+import {qs} from "./utils/core";
 
+const ENCRYPTION_PATH = "META-INF/encryption.xml";
+var encryptedFiles
+var metadata
+var noEncryption
 /**
  * Handles Unzipping a requesting files from an Epub Archive
  * @class
@@ -12,7 +19,9 @@ class Archive {
 
 	constructor() {
 		this.zip = undefined;
+    this.url = new Url("/", "")
 		this.urlCache = {};
+
 
 		this.checkRequirements();
 
@@ -82,10 +91,15 @@ class Archive {
 				deferred.resolve(result);
 			}.bind(this));
 		} else {
-			deferred.reject({
-				message : "File not found in the epub: " + url,
-				stack : new Error().stack
-			});
+      if (url.includes('encryption.xml')) {
+        noEncryption = true
+        deferred.resolve(undefined)
+      } else {
+        deferred.reject({
+          message : "File not found in the epub: " + url,
+          stack : new Error().stack
+        });
+      }
 		}
 		return deferred.promise;
 	}
@@ -121,23 +135,192 @@ class Archive {
 		return r;
 	}
 
+  /**
+	 * Resolve a path to it's absolute position in the Book
+	 * @param  {string} path
+	 * @param  {boolean} [absolute] force resolving the full URL
+	 * @return {string}          the resolved path string
+	 */
+  resolve(path, absolute) {
+		if (!path) {
+			return;
+		}
+		var resolved = path;
+		var isAbsolute = (path.indexOf("://") > -1);
+
+		if (isAbsolute) {
+			return path;
+		}
+
+		if(absolute != false && this.url) {
+			resolved = this.url.resolve(resolved);
+		}
+
+		return resolved;
+	}
+
+  /**
+	 * Parse the Encyption XML
+	 * @param  {document} containerDocument
+	 */
+	parse(containerDocument){
+		//-- <rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/>
+		// var encryptionFile;
+    var encryptedFilesEl;
+    var encryptedFiles = {}
+
+		if(!containerDocument) {
+			return undefined
+		}
+
+		// encryptionFile = qs(containerDocument, "EncryptionMethod");
+    encryptedFilesEl = containerDocument.querySelectorAll('EncryptedData')
+
+    if(!encryptedFilesEl) {
+      return undefined
+    }
+
+    for (let i = 0; i < encryptedFilesEl.length; i++) {
+      encryptedFiles[i] = {
+        algorithm: '',
+        url: ''
+      }
+      const encryptedFilesChildEl = encryptedFilesEl[i].children
+      let algorithm
+      let url
+      for (let j = 0; j < encryptedFilesChildEl.length; j++) {
+        algorithm = encryptedFilesChildEl[j].getAttribute('Algorithm')
+        if (!algorithm) {
+          const cipherDataChildEls = encryptedFilesChildEl[j].children
+          if (cipherDataChildEls) {
+            url = cipherDataChildEls[0]?.getAttribute('URI')
+          }
+        }
+        if (algorithm) {
+          encryptedFiles[i].algorithm = algorithm
+        }
+        if (url) {
+          encryptedFiles[i].url = url
+        }
+      }
+    }
+    return encryptedFiles
+	}
+
+  findXmlElemByLocalNameAny(rootElement, localName, predicate) {
+    var elements = rootElement.getElementsByTagName(localName);
+    if (predicate) {
+        return _.find(elements, predicate);
+    } else {
+        return elements[0];
+    }
+  }
+
+  getElemText(rootElement, localName, predicate) {
+    var foundElement = this.findXmlElemByLocalNameAny(rootElement, localName, predicate);
+    if (foundElement) {
+        return foundElement.textContent;
+    } else {
+        return '';
+    }
+  }
+
+  saveMetadata(md) {
+    metadata = md
+  }
+
+  clearEncryptionData() {
+    metadata = undefined
+    encryptedFiles = undefined
+    noEncryption = false
+  }
+
 	/**
 	 * Get a Blob from Archive by Url
 	 * @param  {string} url
 	 * @param  {string} [mimeType]
 	 * @return {Blob}
 	 */
-	getBlob(url, mimeType){
+	async getBlob(url, mimeType){
 		var decodededUrl = window.decodeURIComponent(url.substr(1)); // Remove first slash
 		var entry = this.zip.file(decodededUrl);
+    var UIDHash
 
-		if(entry) {
-			mimeType = mimeType || mime.lookup(entry.name);
-			return entry.async("uint8array").then(function(uint8array) {
-				return new Blob([uint8array], {type : mimeType});
-			});
-		}
-	}
+    try {
+      if (!noEncryption && !encryptedFiles) {
+        var resolved = this.resolve(ENCRYPTION_PATH);
+        var encryptionXML = await this.request(resolved)
+        var encryptedFilesObj = this.parse(encryptionXML)
+        encryptedFiles = encryptedFilesObj ? Object.values(encryptedFilesObj) : undefined
+        UIDHash = this.getUIDHash(metadata.identifier)
+      }
+
+      if(entry) {
+        mimeType = mimeType || mime.lookup(entry.name);
+        let encryptedFileIndex
+        if (encryptedFiles) {
+          encryptedFileIndex = encryptedFiles.findIndex(ef => url.includes(ef.url))
+        } else {
+          encryptedFileIndex = -1
+        }
+        if (encryptedFileIndex !== -1 && encryptedFiles?.[encryptedFileIndex]?.algorithm.includes('http://www.idpf.org/2008/embedding') ) {
+          return entry.async("uint8array").then(async function(uint8array) {
+            var masklen = UIDHash.length;
+            var prefixLength = 1040
+            var obfuscatedResourceBlob = new Blob([uint8array], {type : mimeType})
+            var obfuscatedPrefixBlob = obfuscatedResourceBlob.slice(0, prefixLength);
+            var arrayBuffer = await obfuscatedPrefixBlob.arrayBuffer()
+			      var bytes = new Uint8Array(arrayBuffer)
+            for (var i = 0; i < prefixLength; i++) {
+              bytes[i] = bytes[i] ^ (UIDHash[i % masklen]);
+            }
+            var deobfuscatedPrefixBlob = new Blob([bytes], { type: obfuscatedResourceBlob.type });
+            var remainderBlob = obfuscatedResourceBlob.slice(prefixLength);
+            var deobfuscatedBlob = new Blob([deobfuscatedPrefixBlob, remainderBlob],
+              { type: obfuscatedResourceBlob.type });
+            return deobfuscatedBlob;
+          });
+        } else {
+          return entry.async("uint8array").then(function(uint8array) {
+            return new Blob([uint8array], {type : mimeType});
+          });
+        }
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  getUIDHash(id) {
+    var txt = unescape(encodeURIComponent(id.trim()));
+    var sha = CryptoJS_SHA1(txt);
+
+    var byteArray = [];
+
+    for (var i = 0; i < sha.sigBytes; i++) {
+        byteArray.push((sha.words[i >>> 2] >>> (24 - (i % 4) * 8)) & 0xff);
+    }
+
+    return byteArray
+  }
+
+  /**
+	 * Get a Blob from Archive by Url
+	 * @param  {string} url
+	 * @param  {string} [mimeType]
+	 * @return {Blob}
+	 */
+	// getBlob(url, mimeType){
+	// 	var decodededUrl = window.decodeURIComponent(url.substr(1)); // Remove first slash
+	// 	var entry = this.zip.file(decodededUrl);
+
+	// 	if(entry) {
+	// 		mimeType = mimeType || mime.lookup(entry.name);
+	// 		return entry.async("uint8array").then(function(uint8array) {
+	// 			return new Blob([uint8array], {type : mimeType});
+	// 		});
+	// 	}
+	// }
 
 	/**
 	 * Get Text from Archive by Url

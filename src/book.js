@@ -487,6 +487,7 @@ class Book {
 			this.cover = this.resolve(this.packaging.coverPath);
 		}
 		// Resolve promises
+    this.archive.saveMetadata(this.packaging.metadata);
 		this.loading.manifest.resolve(this.packaging.manifest);
 		this.loading.metadata.resolve(this.packaging.metadata);
 		this.loading.spine.resolve(this.spine);
@@ -601,6 +602,7 @@ class Book {
 	 */
 	unarchive(input, encoding) {
 		this.archive = new Archive();
+    this.archive.clearEncryptionData()
 		return this.archive.open(input, encoding);
 	}
 

@@ -154,6 +154,7 @@ class Section {
 					}
 					else {
 						excerpt = node.textContent.substring(pos - limit/2, pos + limit/2);
+						excerpt = excerpt.substr(Math.max(0, excerpt.indexOf(" ")), Math.min(excerpt.length, excerpt.lastIndexOf(" ")))
 						excerpt = "..." + excerpt + "...";
 					}
 

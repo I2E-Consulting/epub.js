@@ -237,15 +237,22 @@ class Archive {
     noEncryption = false
   }
 
-	/**
-	 * Get a Blob from Archive by Url
-	 * @param  {string} url
-	 * @param  {string} [mimeType]
-	 * @return {Blob}
-	 */
-	async getBlob(url, mimeType){
-		var decodededUrl = window.decodeURIComponent(url.substr(1)); // Remove first slash
-		var entry = this.zip.file(decodededUrl);
+   /**
+	* Get a Blob from Archive by Url
+	* @param  {string} url
+	* @param  {string} [mimeType]
+	* @return {Blob}
+	*/
+   async getBlob(url, mimeType){
+	var decodededUrl = window.decodeURIComponent(url.substr(1)); // Remove first slash
+	var entry = this.zip.file(decodededUrl);
+    if (!entry) {
+      const regex = new RegExp(decodededUrl, 'i')
+      entry = this.zip.file(regex)
+      if (entry && entry.length > 0) {
+        entry = entry[0]
+      }
+    }
     var UIDHash
 
     try {
@@ -287,6 +294,9 @@ class Archive {
             return new Blob([uint8array], {type : mimeType});
           });
         }
+      } else {
+        console.error('file not found ', url)
+        return new Blob([])
       }
     } catch (e) {
       console.error(e)

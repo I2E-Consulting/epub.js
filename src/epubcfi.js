@@ -965,8 +965,9 @@ class EpubCFI {
 				}
 
 			} catch (e) {
-				missed = this.fixMiss(startSteps, start.terminal.offset, doc, needsIgnoring ? ignoreClass : null);
-				range.setStart(missed.container, missed.offset);
+				// missed = this.fixMiss(startSteps, start.terminal.offset, doc, needsIgnoring ? ignoreClass : null);
+				// range.setStart(missed.container, missed.offset);
+				return null;
 			}
 		} else {
 			console.log("No startContainer found for", this.toString());

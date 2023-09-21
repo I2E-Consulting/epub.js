@@ -217,7 +217,7 @@ class Section {
 					range.setEnd(endNode, beforeEndLengthCount > endPos ? endPos : endPos - beforeEndLengthCount );
 					cfi = section.cfiFromRange(range);
 
-					let excerpt = nodeList.slice(0, endNodeIndex+1).reduce((acc,current)=>{return acc+current.textContent ;},"");
+					let excerpt = nodeList.reduce((acc,current)=>{return acc+current.textContent ;},"");
 					if (excerpt.length > excerptLimit){
 						excerpt = excerpt.substring(pos - excerptLimit/2, pos + excerptLimit/2);
 						excerpt = "..." + excerpt + "...";

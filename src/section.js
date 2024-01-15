@@ -230,7 +230,11 @@ class Section {
 			}
 		}
 
-		const treeWalker = document.createTreeWalker(section.document, NodeFilter.SHOW_TEXT, null, false);
+		const treeWalker = document.createTreeWalker(
+			section.document,
+			NodeFilter.SHOW_TEXT,
+			node => this.isHeadElement(node) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT
+		)
 		let node , nodeList = [];
 		while (node = treeWalker.nextNode()) {
 			nodeList.push(node);
@@ -243,6 +247,16 @@ class Section {
 			search(nodeList);
 		}
 		return matches;
+	}
+
+	/**
+	* Checks if a given node is the head element.
+	*
+	* @param {Node} node - The node to check.
+	* @returns {boolean} - True if the node is the head element, false otherwise.
+	*/
+	isHeadElement(node) {
+		return node.parentNode && node.parentNode.parentNode && node.parentNode.parentNode.nodeName && node.parentNode.parentNode.nodeName.toLowerCase() === 'head';
 	}
 
 	/**

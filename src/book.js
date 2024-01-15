@@ -487,7 +487,9 @@ class Book {
 			this.cover = this.resolve(this.packaging.coverPath);
 		}
 		// Resolve promises
-    this.archive.saveMetadata(this.packaging.metadata);
+		if (this.archive) {
+			this.archive.saveMetadata(this.packaging.metadata);
+		}
 		this.loading.manifest.resolve(this.packaging.manifest);
 		this.loading.metadata.resolve(this.packaging.metadata);
 		this.loading.spine.resolve(this.spine);

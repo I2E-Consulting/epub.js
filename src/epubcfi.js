@@ -965,9 +965,14 @@ class EpubCFI {
 				}
 
 			} catch (e) {
-				// missed = this.fixMiss(startSteps, start.terminal.offset, doc, needsIgnoring ? ignoreClass : null);
-				// range.setStart(missed.container, missed.offset);
-				return null;
+				try {
+			          missed = this.fixMiss(startSteps, start.terminal.offset, doc, needsIgnoring ? ignoreClass : null);
+			          range.setStart(missed.container, missed.offset);
+			        } catch (error) {
+			          // location not found
+			          console.log("No startContainer found for", this.toString());
+			          return null;
+			        }
 			}
 		} else {
 			console.log("No startContainer found for", this.toString());
@@ -985,8 +990,14 @@ class EpubCFI {
 				}
 
 			} catch (e) {
-				missed = this.fixMiss(endSteps, cfi.end.terminal.offset, doc, needsIgnoring ? ignoreClass : null);
-				range.setEnd(missed.container, missed.offset);
+				try {
+			          missed = this.fixMiss(endSteps, cfi.end.terminal.offset, doc, needsIgnoring ? ignoreClass : null);
+			          range.setEnd(missed.container, missed.offset);
+			        } catch (error) {
+			          // location not found
+			    			console.log("No startContainer found for", this.toString());
+						    return null;
+			        }
 			}
 		}
 

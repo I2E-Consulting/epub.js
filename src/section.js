@@ -183,69 +183,89 @@ class Section {
 	 * @param  {int} maxSeqEle The maximum number of Element that are combined for search, default value is 5.
 	 * @return {object[]} A list of matches, with form {cfi, excerpt}
 	 */
-	search(_query , maxSeqEle = 5){
+	search(_query , maxSeqEle = 5) {
 		if (typeof(document.createTreeWalker) == "undefined") {
-			return this.find(_query);
+		  return this.find(_query);
 		}
+
 		let matches = [];
 		const excerptLimit = 150;
 		const section = this;
-		const query = _query.toLowerCase();
-		const search = function(nodeList){
-			const textWithCase =  nodeList.reduce((acc ,current)=>{
-				return acc + current.textContent;
-			},"");
-			const text = textWithCase.toLowerCase();
-			const pos = text.indexOf(query);
-			if (pos != -1){
-				const startNodeIndex = 0 , endPos = pos + query.length;
-				let endNodeIndex = 0 , l = 0;
-				if (pos < nodeList[startNodeIndex].length){
-					let cfi;
-					while( endNodeIndex < nodeList.length - 1 ){
-						l += nodeList[endNodeIndex].length;
-						if ( endPos <= l){
-							break;
-						}
-						endNodeIndex += 1;
-					}
+		const query = _query.replace(/\s+/g, ' ').toLowerCase(); // Normalize query
 
-					let startNode = nodeList[startNodeIndex] , endNode = nodeList[endNodeIndex];
-					let range = section.document.createRange();
-					range.setStart(startNode,pos);
-					let beforeEndLengthCount =  nodeList.slice(0, endNodeIndex).reduce((acc,current)=>{return acc+current.textContent.length;},0) ;
-					range.setEnd(endNode, beforeEndLengthCount > endPos ? endPos : endPos - beforeEndLengthCount );
-					cfi = section.cfiFromRange(range);
+		const search = function(nodeList) {
+		  // Normalize leading whitespace for the first node only to prevent duplicate results
+		  nodeList[0].textContent = nodeList[0].textContent.replace(/^\s+/, ' ');
 
-					let excerpt = nodeList.reduce((acc,current)=>{return acc+current.textContent ;},"");
-					if (excerpt.length > excerptLimit){
-						excerpt = excerpt.substring(pos - excerptLimit/2, pos + excerptLimit/2);
-						excerpt = "..." + excerpt + "...";
-					}
-					matches.push({
-						cfi: cfi,
-						excerpt: excerpt
-					});
+		  const textWithCase = nodeList.reduce((acc, current) => acc + current.textContent, "");
+		  const text = textWithCase.replace(/\s+/g, ' ').toLowerCase(); // Normalize text
+		  const pos = text.indexOf(query);
+
+		  if (pos != -1) {
+			const startNodeIndex = 0;
+			const endPos = pos + query.length;
+			let endNodeIndex = 0, l = 0;
+
+			if (pos < nodeList[startNodeIndex].length) {
+			  let cfi;
+
+			  // Adjust calculation of endNodeIndex by normalizing text content
+			  while (endNodeIndex < nodeList.length - 1) {
+				l += nodeList[endNodeIndex].textContent.replace(/\s+/g, ' ').length; // Normalize node text lengths
+				if (endPos <= l) {
+				  break;
 				}
+				endNodeIndex += 1;
+			  }
+
+			  let startNode = nodeList[startNodeIndex];
+			  let endNode = nodeList[endNodeIndex];
+			  let range = section.document.createRange();
+
+			  // Calculate correct start and end offsets
+			  let startOffset = pos;
+			  let beforeEndLengthCount = nodeList.slice(0, endNodeIndex).reduce((acc, current) => acc + current.textContent.replace(/\s+/g, ' ').length, 0);
+			  let endOffset = endPos - beforeEndLengthCount;
+
+			  range.setStart(startNode, startOffset);
+			  range.setEnd(endNode, endOffset >= 0 ? endOffset : endNode.textContent.length);
+
+			  cfi = section.cfiFromRange(range);
+
+			  // Create excerpt
+			  let excerpt = nodeList.reduce((acc, current) => acc + current.textContent, "");
+			  if (excerpt.length > excerptLimit) {
+				excerpt = excerpt.substring(pos - excerptLimit / 2, pos + excerptLimit / 2);
+				excerpt = "..." + excerpt + "...";
+			  }
+
+			  matches.push({
+				cfi: cfi,
+				excerpt: excerpt
+			  });
 			}
+		  }
 		}
 
 		const treeWalker = document.createTreeWalker(
-			section.document,
-			NodeFilter.SHOW_TEXT,
-			node => this.isHeadElement(node) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT
-		)
-		let node , nodeList = [];
+		  section.document,
+		  NodeFilter.SHOW_TEXT,
+		  node => this.isHeadElement(node) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT
+		);
+
+		let node, nodeList = [];
 		while (node = treeWalker.nextNode()) {
-			nodeList.push(node);
-			if (nodeList.length == maxSeqEle){
-				search(nodeList.slice(0 , maxSeqEle));
-				nodeList = nodeList.slice(1, maxSeqEle);
-			}
+		  nodeList.push(node);
+		  if (nodeList.length == maxSeqEle) {
+			search(nodeList.slice(0, maxSeqEle));
+			nodeList = nodeList.slice(1, maxSeqEle);
+		  }
 		}
-		if (nodeList.length > 0){
-			search(nodeList);
+
+		if (nodeList.length > 0) {
+		  search(nodeList);
 		}
+
 		return matches;
 	}
 

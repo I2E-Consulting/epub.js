@@ -32,7 +32,8 @@ module.exports = {
 		library: "ePub",
 		libraryTarget: "umd",
 		libraryExport: "default",
-		publicPath: "/dist/"
+		publicPath: "/dist/",
+		hashFunction: "xxhash64"
 	},
 	optimization: {
 		minimize: MINIMIZE

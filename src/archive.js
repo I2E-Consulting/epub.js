@@ -3,7 +3,7 @@ import request from "./utils/request";
 import mime from "./utils/mime";
 import Path from "./utils/path";
 import JSZip from "jszip/dist/jszip";
-import CryptoJS_SHA1 from "crypto-js/sha1";
+import { createHash } from 'crypto-browserify';
 import Url from "./utils/url";
 import {qs} from "./utils/core";
 
@@ -303,9 +303,13 @@ class Archive {
     }
   }
 
+  sha1Hash(txt) {
+	return createHash('sha1').update(txt).digest('hex');
+  }
+
   getUIDHash(id) {
     var txt = unescape(encodeURIComponent(id.trim()));
-    var sha = CryptoJS_SHA1(txt);
+    var sha = this.sha1Hash(txt);
 
     var byteArray = [];
 
